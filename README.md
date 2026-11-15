@@ -1,83 +1,164 @@
-﻿# AIModelRegistry — Decentralized AI Asset & IP Registry (PoC)
+# AIModelRegistry — On-Chain AI Model Registry & Licensing (PoC)
 
-A clean, modular Proof of Concept (PoC) smart contract architecture built on **ERC-1155** for registering, tokenizing, and verifying intellectual property (IP) ownership and licensing parameters for Artificial Intelligence models on EVM-compatible blockchains.
+A Proof of Concept (PoC) smart contract built on **ERC-1155** that registers AI models on an EVM chain, sells licenses to them in ETH, and credits the revenue to the model's creator. Heavy assets (model weights) stay off-chain; the contract records who registered a model, a hash of its content, its commercial terms and who holds licenses.
 
----
-
-## Architecture Overview
-
-Rather than storing heavy neural network weights on-chain, `AIModelRegistry.sol` acts as an **immutable cryptographic notary**, binding off-chain AI assets to verifiable on-chain metadata:
-
-* **Asset Identity (`uint256` Token ID):** Unique deterministic identifier per registered model.
-* **Provenance & Authorship:** Cryptographic binding between the creator's address/handle (e.g., `@VinciLabs`) and the model (`VisionForge Pro`).
-* **Commercial Terms:** On-chain base pricing (`ETH`) and fractionalized token supply (`ERC-1155`) for multi-tier licensing or shared ownership.
-* **Event-Driven Indexing:** Emits `ModelRegistered` events for real-time dApp and subgraph synchronization.
+> **Status:** PoC for learning and evaluation. Not audited. Do not deploy with real funds.
 
 ---
 
-## Tech Stack
+## What the contract does
 
-* **Smart Contracts:** Solidity (`^0.8.20`), OpenZeppelin ERC-1155
-* **Development & EVM Environment:** Hardhat 3, Ethers.js v6
-* **Testing & Verification:** Mocha, Chai
-* **Interactive Presentation Viewer:** Standalone HTML5 / CSS3 / Vanilla JS (`visor-demo.html`)
+| Capability | How it works |
+|---|---|
+| **Register a model** | `registerModel()` stores the name, the creator **address** (`msg.sender`), a creator handle (free text), a **content hash** of the off-chain weights, the price per license and a maximum supply. Mints an optional initial supply to the creator. |
+| **Content notarization** | Each content hash can be registered **once**. The chain records *who registered a hash first, and when*. It does not prove the registrant owns the weights (see limitations). |
+| **Buy licenses** | `acquireLicense()` mints license units (ERC-1155 balances) to the buyer for `basePrice × quantity`. Reverts if the model is inactive, the payment is short, the quantity is zero or the **maximum supply** would be exceeded. |
+| **Pull payments** | Payments are credited to `pendingWithdrawals` and collected with `withdraw()`. Overpayment is credited back to the buyer the same way. No ETH can be left stuck in the contract. |
+| **Model status** | `setModelActive()` lets the creator (or the contract owner) pause or resume sales of a model. |
+| **Indexing** | Emits `ModelRegistered`, `LicenseAcquired`, `ModelStatusChanged` and `Withdrawn` for dApps and subgraphs. |
+
+### Flow
+
+    Creator ── registerModel(name, handle, contentHash, price, maxSupply, initialSupply) ──► Registry
+                                                                                             │ token #N
+    Buyer ──── acquireLicense(tokenId, quantity) + ETH ────────────────────────────────────► Registry
+                                                                                             │ mints license units to buyer
+                                                                                             │ credits ETH to creator (and any excess to buyer)
+    Creator / Buyer ── withdraw() ◄── pendingWithdrawals ────────────────────────────────────┘
+
+**On-chain:** model identity, creator address, content hash, price, supply, licenses, payments.
+**Off-chain:** model weights, inference, analytics, metadata files.
 
 ---
 
-## Interactive Dual-Terminal Viewer (`visor-demo.html`)
+## Contract API
 
-This repository includes a zero-dependency, standalone HTML5 presentation dashboard (**`visor-demo.html`**) designed to visually demonstrate the smart contract lifecycle and cryptographic audit flow without requiring an active RPC server:
+| Function | Access | Description |
+|---|---|---|
+| `registerModel(name, creatorHandle, contentHash, price, maxSupply, initialSupply)` | Anyone | Registers a model and returns its token id. Name and handle must be 1–64 bytes, hash non-zero and unique, `maxSupply > 0`, `initialSupply <= maxSupply`. |
+| `acquireLicense(tokenId, quantity)` | Anyone (payable) | Buys license units. |
+| `withdraw()` | Anyone with a balance | Pulls credited ETH. |
+| `setModelActive(tokenId, status)` | Creator or owner | Enables or disables sales. |
+| `setURI(newUri)` | Owner | Changes the metadata base URI. |
+| `modelRegistry(tokenId)` | View | Returns the stored model data. |
+| `pendingWithdrawals(account)` | View | ETH credited to an account. |
+| `totalSupply(tokenId)` | View | Units minted so far (use `registry["totalSupply(uint256)"]` in ethers). |
 
-* **Executive Overview Cards:** Displays real-time metadata for the digital notary contract (`AIModelRegistry.sol`), the registered AI asset (`VisionForge Pro` by `@VinciLabs`, Token ID `#0`), commercial parameters (`0.48 ETH`, `1,000` fractional units), and verification status (`Keccak-256 + Mocha/Chai`).
-* **Terminal A (Local Hardhat EVM Node — Port 8545):** Simulates the local JSON-RPC server receiving Keccak-256 signed transactions, mining Block `#2`, and updating the EVM state root.
-* **Terminal B (Client Deployment & Auditor):** Simulates contract deployment, execution of the `registerModel()` transaction, `ModelRegistered` event emission, and the automated Mocha/Chai test suite validation.
-* **Interactive Playback Controls:** Allows stepping individually through node initialization, asset registration, and automated testing, or running the full synchronized sequence.
+### Design decisions
+
+* **ERC-1155** — one contract manages many models, and each model's licenses are fungible units of its token id.
+* **`ERC1155Supply`** — tracks supply per token so `maxSupply` can be enforced.
+* **Pull-payment withdrawals + `ReentrancyGuard`** — state is updated before minting and no ETH is pushed to arbitrary addresses during a purchase.
+* **Sequential token ids** — simple and cheap; uniqueness of the *content* is guaranteed by the hash check, not by the id.
 
 ---
 
-## User Guide: Local Setup & Execution (Windows)
+## Known limitations
 
-### Prerequisites
-* **Node.js** (v18 or higher) and **npm** installed on Windows.
-* **Git** for version control.
+This is a PoC. The following are deliberate simplifications:
 
-### 1. Clone & Install Dependencies
-Open PowerShell in your workspace folder and run:
+* **Hash front-running:** a content hash that appears in the mempool can be registered first by someone else. A production version should use commit–reveal.
+* **The registrant is not proven to own the weights.** The contract notarizes *first registration of a hash*, not authorship. Real provenance needs off-chain evidence or signatures.
+* **`creatorHandle` is unverified text.** The creator's **address** is the real identity.
+* **No license types, expirations or permissions.** Every unit is an equivalent license; personal / commercial / enterprise tiers are not modeled.
+* **No secondary-sale royalties** (ERC-2981 is not implemented) and licenses are freely transferable.
+* **Centralized metadata:** the base URI points to an off-chain server and the contract owner can change it.
+* **Owner powers:** the contract owner can deactivate any model.
+* **Gas:** names and handles are stored on-chain as strings; hashing them would be cheaper.
+
+---
+
+## Tech stack
+
+* **Smart contracts:** Solidity `^0.8.20`, OpenZeppelin v5 (`ERC1155`, `ERC1155Supply`, `Ownable`, `ReentrancyGuard`)
+* **Environment:** Hardhat 3, Ethers.js v6, Hardhat Ignition
+* **Testing:** Mocha, Chai (32 tests)
+* **Presentation viewer:** standalone HTML5 / CSS3 / vanilla JS (`visor-demo.html`)
+
+---
+
+## Quick start (Windows PowerShell)
+
+**Prerequisites:** Node.js 22 or later (required by Hardhat 3, check with `node -v`), npm and Git.
 
     git clone https://github.com/jgarcia0908/ai-model-registry-poc.git
     cd ai-model-registry-poc
     npm install
 
-### 2. Enable PowerShell Script Execution (Windows Only)
-If Windows PowerShell restricts local `.ps1` scripts, allow execution for your current terminal session:
+If PowerShell blocks scripts, allow them for the current session only:
 
     Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
-### 3. Compile & Run Automated Tests
-Compile the ERC-1155 smart contract and execute the Mocha/Chai validation suite:
+### Compile and test
 
     npx hardhat compile
     npx hardhat test
 
-### 4. Launch the Interactive HTML Viewer
-1. Navigate to the project root folder in Windows File Explorer.
-2. Double-click **visor-demo.html** to open it directly in any modern web browser (Chrome, Edge, Brave).
-3. Use the top control bar to run the full live demo or step through each stage.
+The suite covers registration and its validations, license purchases (payment, excess, supply cap, inactive and unknown models), withdrawals, access control and the metadata URI.
+
+### Deploy
+
+    npx hardhat run scripts/deploy.js
+    npx hardhat ignition deploy ignition/modules/AIModelRegistry.ts
+
+Both run against an in-process Hardhat network, so the result is discarded when the command ends. Use `--network <name>` with a network configured in `hardhat.config.ts` to deploy elsewhere.
+
+### Run the full demo
+
+    npx hardhat run scripts/interact.js
+
+Deploys a fresh registry and walks through the whole lifecycle. Example output (trimmed):
+
+    2. Model registered as token #0
+       name:        VisionForge Pro
+       price:       0.48 ETH per license
+       maxSupply:   1000
+    3. Duplicate hash rejected: ... 'Content hash already registered'
+    4. Buyer acquired 2 licenses (sent 0.98 ETH)
+       credited to creator:    0.96 ETH
+       credited back to buyer: 0.02 ETH
+    5. Withdrawals done
+       contract balance:       0.0 ETH
+    6. Model deactivated, purchase rejected: ... 'Model is not active'
 
 ---
 
-## Repository Structure
+## Interactive viewer (`visor-demo.html`)
+
+A standalone, zero-dependency HTML page that **replays** the contract lifecycle as two terminals: a chain-events log and a client/auditor. The terminal text is taken from a real run of `scripts/interact.js` and of the test suite, but the page is a visual walkthrough for presentations: it does **not** connect to a node or execute the contract. Double-click the file to open it in any modern browser.
+
+---
+
+## Repository structure
 
     ai-model-registry-poc/
     ├── contracts/
-    │   └── AIModelRegistry.sol       # Core ERC-1155 AI Model Registry smart contract
+    │   └── AIModelRegistry.sol       # ERC-1155 registry, licensing and pull payments
+    ├── ignition/
+    │   └── modules/
+    │       └── AIModelRegistry.ts    # Hardhat Ignition deployment module
     ├── scripts/
-    │   ├── deploy.js                 # Deployment script for local EVM nodes
-    │   └── interact.js               # Live interaction script simulating model registration
+    │   ├── deploy.js                 # Deployment script
+    │   └── interact.js               # Full lifecycle demo
     ├── test/
-    │   └── AIModelRegistry.test.js   # Automated Mocha/Chai unit tests
-    ├── visor-demo.html               # Interactive HTML5 Dual-Terminal & Validation Viewer
+    │   └── AIModelRegistry.test.js   # Mocha/Chai unit tests
+    ├── visor-demo.html               # Simulated two-terminal viewer
     ├── hardhat.config.ts             # Hardhat network and compiler configuration
-    ├── package.json                  # Project dependencies and ESM configuration
-    ├── .gitignore                    # Excludes node_modules, cache, and build artifacts
-    └── README.md                     # Project architecture, viewer guide, and Windows setup
+    ├── package.json                  # Dependencies and ESM configuration
+    └── README.md
+
+---
+
+## Roadmap
+
+* Deploy and verify on a public testnet (Sepolia or Base Sepolia)
+* License types, expirations and permissions
+* ERC-2981 royalties and a configurable revenue split
+* Commit–reveal registration to prevent hash front-running
+* Test coverage report and a CI workflow
+
+---
+
+## AI-assisted development
+
+This project was developed with the assistance of AI tools (Anthropic's Claude) for code review, drafting of tests and scripts, and documentation. The design decisions, the contract changes and the validation (compilation, the 32-test suite and the demo run) were reviewed and verified by the author.
