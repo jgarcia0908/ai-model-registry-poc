@@ -1,71 +1,107 @@
-import { ethers } from "ethers";
-import fs from "fs";
+import hre from "hardhat";
+
+// Shortens ethers/Hardhat revert errors to a single readable line
+function reason(error) {
+  return (error.shortMessage ?? error.message ?? String(error)).split("\n")[0];
+}
 
 async function main() {
-  console.log("Conectando con el nodo local de [NuvyraHub](http://nuvyrahub.org/)...");
+  const { ethers } = await hre.network.create();
+  const eth = (v) => `${ethers.formatEther(v)} ETH`;
 
-  // Proveedor JSON-RPC del nodo local de Hardhat
-  const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+  const [owner, developer, buyer] = await ethers.getSigners();
 
-  // Usar la clave privada de la Account #0 de Hardhat
-  const privateKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
-  const wallet = new ethers.Wallet(privateKey, provider);
+  console.log("=== AIModelRegistry demo (NuvyraHub PoC) ===\n");
+  console.log(`Owner:     ${owner.address}`);
+  console.log(`Developer: ${developer.address}`);
+  console.log(`Buyer:     ${buyer.address}\n`);
 
-  console.log(`Usando la cuenta de despliegue/interacción: ${wallet.address}`);
+  // 1. Deploy a fresh registry (in-memory network, lives for this run only)
+  const Factory = await ethers.getContractFactory("AIModelRegistry");
+  const registry = await Factory.deploy();
+  await registry.waitForDeployment();
+  console.log(`1. Contract deployed at ${await registry.getAddress()}`);
 
-  // Dirección del contrato desplegado
-  const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+  // 2. Developer registers VisionForge Pro
+  const name = "VisionForge Pro";
+  const handle = "@VinciLabs";
+  const contentHash = ethers.id("visionforge-pro-weights-v3.2"); // hash of the off-chain weights
+  const price = ethers.parseEther("0.48");
+  const maxSupply = 1000;
+  const initialSupply = 100;
 
-  // Cargar el artefacto (ABI) compilado del contrato
-  const artifactPath = "./artifacts/contracts/AIModelRegistry.sol/AIModelRegistry.json";
-  if (!fs.existsSync(artifactPath)) {
-    throw new Error(`No se encontró el artefacto en ${artifactPath}. Asegúrate de compilar primero.`);
+  const tokenId = await registry.nextTokenId();
+  await (
+    await registry
+      .connect(developer)
+      .registerModel(name, handle, contentHash, price, maxSupply, initialSupply)
+  ).wait();
+
+  const model = await registry.modelRegistry(tokenId);
+  console.log(`\n2. Model registered as token #${tokenId}`);
+  console.log(`   name:        ${model.modelName}`);
+  console.log(`   creator:     ${model.creator}`);
+  console.log(`   contentHash: ${model.contentHash}`);
+  console.log(`   price:       ${eth(model.basePrice)} per license`);
+  console.log(`   maxSupply:   ${model.maxSupply}`);
+  console.log(
+    `   creator holds ${await registry.balanceOf(developer.address, tokenId)} initial units`
+  );
+
+  // 3. Anyone else registering the same content hash must fail
+  try {
+    await registry
+      .connect(buyer)
+      .registerModel("Copycat", "@Fake", contentHash, price, maxSupply, 0);
+    console.log("\n3. ERROR: duplicate hash was accepted");
+  } catch (error) {
+    console.log(`\n3. Duplicate hash rejected: ${reason(error)}`);
   }
-  
-  const artifactJson = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
-  const registry = new ethers.Contract(contractAddress, artifactJson.abi, wallet);
 
-  console.log("Registrando el modelo 'VisionForge Pro' de @VinciLabs...");
+  // 4. Buyer acquires 2 licenses and overpays on purpose
+  const quantity = 2n;
+  const cost = price * quantity;
+  const overpay = ethers.parseEther("0.02");
+  await (
+    await registry.connect(buyer).acquireLicense(tokenId, quantity, { value: cost + overpay })
+  ).wait();
 
-  // Parámetros del modelo
-  const modelName = "VisionForge Pro";
-  const creatorHandle = "@VinciLabs";
-  const basePrice = ethers.parseEther("0.48");
-  const initialSupply = 1000;
+  console.log(`\n4. Buyer acquired ${quantity} licenses (sent ${eth(cost + overpay)})`);
+  console.log(`   buyer licenses:        ${await registry.balanceOf(buyer.address, tokenId)}`);
+  console.log(
+    `   total supply:          ${await registry["totalSupply(uint256)"](tokenId)} / ${maxSupply}`
+  );
+  console.log(
+    `   credited to creator:   ${eth(await registry.pendingWithdrawals(developer.address))}`
+  );
+  console.log(
+    `   credited back to buyer: ${eth(await registry.pendingWithdrawals(buyer.address))}`
+  );
 
-  // Ejecutar la transacción de registro en la blockchain local
-  const tx = await registry.registerModel(modelName, creatorHandle, basePrice, initialSupply);
-  console.log(`Transacción enviada con hash: ${tx.hash}`);
+  // 5. Both parties withdraw
+  const before = await ethers.provider.getBalance(developer.address);
+  await (await registry.connect(developer).withdraw()).wait();
+  const after = await ethers.provider.getBalance(developer.address);
+  await (await registry.connect(buyer).withdraw()).wait();
 
-  // Esperar confirmación
-  const receipt = await tx.wait();
-  console.log(`¡Transacción confirmada en el bloque #${receipt.blockNumber}!`);
+  const registryBalance = await ethers.provider.getBalance(await registry.getAddress());
+  console.log("\n5. Withdrawals done");
+  console.log(`   developer net gain (after gas): ${eth(after - before)}`);
+  console.log(`   contract balance:               ${eth(registryBalance)}`);
 
-  // Parsear el evento emitido (ModelRegistered)
-  const eventLog = receipt.logs
-    .map((log) => {
-      try {
-        return registry.interface.parseLog(log);
-      } catch (e) {
-        return null;
-      }
-    })
-    .find((parsed) => parsed && parsed.name === "ModelRegistered");
-
-  if (eventLog) {
-    const tokenId = eventLog.args.tokenId;
-    console.log("\n--- DETALLES DEL MODELO REGISTRADO ---");
-    console.log(` Token ID emitido : ${tokenId.toString()}`);
-    console.log(` Nombre del Modelo: ${eventLog.args.modelName}`);
-    console.log(` Creador          : ${eventLog.args.creator}`);
-    console.log(` Precio Base      : ${ethers.formatEther(eventLog.args.basePrice)} ETH`);
-    console.log("----------------------------------------\n");
-  } else {
-    console.log("Aviso: Transacción exitosa, pero no se pudo parsear el evento.");
+  // 6. Creator deactivates the model, purchases must fail
+  await (await registry.connect(developer).setModelActive(tokenId, false)).wait();
+  try {
+    await registry.connect(buyer).acquireLicense(tokenId, 1n, { value: price });
+    console.log("\n6. ERROR: purchase of an inactive model was accepted");
+  } catch (error) {
+    console.log(`\n6. Model deactivated, purchase rejected: ${reason(error)}`);
   }
+
+  console.log("\nDemo finished.");
 }
 
 main().catch((error) => {
-  console.error("Error durante la interacción:", error);
+  console.error("Interaction failed:", error);
   process.exitCode = 1;
 });

@@ -1,26 +1,31 @@
 import hre from "hardhat";
 
 async function main() {
-	console.log("Iniciando despliegue de AIModelRegistry (NuvyraHub PoC)...");
+  console.log("Deploying AIModelRegistry (NuvyraHub PoC)...");
 
-	// Crear la conexión de red explícitamente (Requerido en Hardhat 3)
-	const connection = await hre.network.create();
-	const { ethers } = connection;
+  // Hardhat 3 requires an explicit network connection
+  const connection = await hre.network.create();
+  const { ethers } = connection;
 
-	// Obtener la fábrica del contrato inteligente
-	const AIModelRegistry = await ethers.getContractFactory("AIModelRegistry");
+  const [deployer] = await ethers.getSigners();
+  const network = await ethers.provider.getNetwork();
+  const balance = await ethers.provider.getBalance(deployer.address);
 
-	console.log("Desplegando contrato...");
-	const registry = await AIModelRegistry.deploy();
+  console.log(`Network (chainId): ${network.chainId}`);
+  console.log(`Deployer:          ${deployer.address}`);
+  console.log(`Deployer balance:  ${ethers.formatEther(balance)} ETH`);
 
-	await registry.waitForDeployment();
+  const AIModelRegistry = await ethers.getContractFactory("AIModelRegistry");
+  const registry = await AIModelRegistry.deploy();
+  await registry.waitForDeployment();
 
-	const address = await registry.getAddress();
-	console.log("¡Contrato desplegado con éxito!");
-	console.log(`Dirección del contrato: ${address}`);
+  const address = await registry.getAddress();
+  console.log("AIModelRegistry deployed successfully.");
+  console.log(`Contract address:  ${address}`);
+  console.log(`Contract owner:    ${await registry.owner()}`);
 }
 
 main().catch((error) => {
-	console.error("Error durante el despliegue:", error);
-	process.exitCode = 1;
+  console.error("Deployment failed:", error);
+  process.exitCode = 1;
 });
