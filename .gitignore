@@ -29,3 +29,17 @@
 
 # Snapshot cheatcodes output
 /snapshots
+
+# Local Ignition deployments (generated when deploying to a node)
+/ignition/deployments/chain-31337
+
+# Chrome partial downloads and OS files
+*.crdownload
+.DS_Store
+Thumbs.db
+
+# AI assistant local config (not published)
+/.claude
+/.agents
+/CLAUDE.md
+/AGENTS.md
