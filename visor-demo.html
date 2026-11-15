@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIModelRegistry — Live EVM & Validation Viewer</title>
+  <title>AIModelRegistry — Lifecycle Viewer (Simulated Playback)</title>
   <style>
     :root {
       --bg-dark: #0d1117;
@@ -15,6 +15,7 @@
       --accent-green: #3fb950;
       --accent-purple: #bc8cff;
       --accent-orange: #d29922;
+      --accent-red: #f85149;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,22 +32,23 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 16px;
       margin-bottom: 24px;
     }
 
     .badge {
-      background: rgba(63, 185, 80, 0.15);
-      color: var(--accent-green);
-      border: 1px solid var(--accent-green);
+      background: rgba(210, 153, 34, 0.15);
+      color: var(--accent-orange);
+      border: 1px solid var(--accent-orange);
       padding: 4px 12px;
       border-radius: 20px;
       font-size: 0.85rem;
       font-weight: 600;
     }
 
-    /* Banner Cards Grid */
     .cards-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -82,19 +84,9 @@
       margin-bottom: 6px;
     }
 
-    .card-value {
-      font-size: 1.15rem;
-      font-weight: 700;
-      color: var(--text-main);
-    }
+    .card-value { font-size: 1.15rem; font-weight: 700; }
+    .card-sub { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
 
-    .card-sub {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    /* Controls Bar */
     .controls {
       display: flex;
       gap: 12px;
@@ -114,22 +106,10 @@
       transition: all 0.2s ease;
     }
 
-    button:hover {
-      border-color: var(--accent-blue);
-      background: #1f242c;
-    }
+    button:hover { border-color: var(--accent-blue); background: #1f242c; }
+    button.primary { background: #238636; border-color: #2ea043; color: #ffffff; }
+    button.primary:hover { background: #2ea043; }
 
-    button.primary {
-      background: #238636;
-      border-color: #2ea043;
-      color: #ffffff;
-    }
-
-    button.primary:hover {
-      background: #2ea043;
-    }
-
-    /* Dual Terminals Layout */
     .terminals-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -146,7 +126,7 @@
       border-radius: 10px;
       display: flex;
       flex-direction: column;
-      height: 410px;
+      height: 440px;
     }
 
     .terminal-header {
@@ -157,15 +137,12 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 8px;
       font-size: 0.85rem;
       font-weight: 600;
     }
 
-    .dots {
-      display: flex;
-      gap: 6px;
-    }
-
+    .dots { display: flex; gap: 6px; }
     .dot { width: 11px; height: 11px; border-radius: 50%; }
     .dot.red { background: #ff5f56; }
     .dot.yellow { background: #ffbd2e; }
@@ -174,19 +151,21 @@
     .terminal-body {
       padding: 16px;
       font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       overflow-y: auto;
       flex: 1;
       white-space: pre-wrap;
+      word-break: break-all;
     }
 
     .log-info { color: var(--accent-blue); }
     .log-success { color: var(--accent-green); }
     .log-warn { color: var(--accent-orange); }
+    .log-error { color: var(--accent-red); }
     .log-purple { color: var(--accent-purple); }
     .log-muted { color: var(--text-muted); }
 
-    .validation-banner {
+    .summary-banner {
       margin-top: 20px;
       background: rgba(88, 166, 255, 0.08);
       border: 1px solid rgba(88, 166, 255, 0.3);
@@ -195,6 +174,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
       font-size: 0.9rem;
     }
   </style>
@@ -203,53 +184,50 @@
 
   <header>
     <div>
-      <h1>AIModelRegistry — Smart Contract & Dual-Terminal Monitor</h1>
+      <h1>AIModelRegistry — Contract Lifecycle Viewer</h1>
       <p style="color: var(--text-muted); font-size: 0.9rem;">
-        ERC-1155 Decentralized AI Intellectual Property & Asset Tokenization PoC
+        ERC-1155 AI model registry with license sales and pull payments (PoC)
       </p>
     </div>
-    <span class="badge" id="network-status">● EVM Localhost :8545 Ready</span>
+    <span class="badge">● Simulated playback — no live node</span>
   </header>
 
-  <!-- Informative Cards (Carteles del Contrato y Activo) -->
   <section class="cards-grid">
     <div class="card blue">
-      <div class="card-label">Smart Contract (Digital Notary)</div>
+      <div class="card-label">Smart Contract</div>
       <div class="card-value">AIModelRegistry.sol</div>
-      <div class="card-sub">Standard: ERC-1155 (uint256 ID) | Solidity ^0.8.20</div>
+      <div class="card-sub">ERC-1155 + ERC1155Supply | Solidity ^0.8.20 | Pull payments</div>
     </div>
 
     <div class="card purple">
-      <div class="card-label">Registered AI Asset & Provenance</div>
+      <div class="card-label">Registered AI Model</div>
       <div class="card-value">VisionForge Pro</div>
-      <div class="card-sub">Creator Handle: <strong>@VinciLabs</strong> | Token ID: <strong>#0</strong></div>
+      <div class="card-sub">Handle: <strong>@VinciLabs</strong> | Creator address: <strong>0x7099…79C8</strong> | Token ID: <strong>#0</strong></div>
     </div>
 
     <div class="card orange">
-      <div class="card-label">Commercial Terms & Supply</div>
-      <div class="card-value">0.48 ETH Base Price</div>
-      <div class="card-sub">Fractional Supply: <strong>1,000</strong> ERC-1155 Units</div>
+      <div class="card-label">Commercial Terms</div>
+      <div class="card-value">0.48 ETH per license</div>
+      <div class="card-sub">Max supply: <strong>1,000</strong> units | Initial supply: <strong>100</strong></div>
     </div>
 
     <div class="card green">
-      <div class="card-label">Cryptographic Integrity</div>
-      <div class="card-value">Keccak-256 + Mocha/Chai</div>
-      <div class="card-sub">Status: <strong id="audit-badge">1 Passing (Verified)</strong></div>
+      <div class="card-label">Verification</div>
+      <div class="card-value">Content hash + Mocha/Chai</div>
+      <div class="card-sub">Test suite: <strong>32 passing</strong></div>
     </div>
   </section>
 
-  <!-- Interactive Presentation Controls -->
   <div class="controls">
-    <button class="primary" onclick="runFullSimulation()">▶ Run Full Live Demo (Terminals A & B)</button>
-    <button onclick="stepNodeStart()">1. Start EVM Node (Terminal A)</button>
-    <button onclick="stepDeployAndRegister()">2. Deploy & Register Model (Terminal B)</button>
-    <button onclick="stepRunTests()">3. Run Mocha/Chai Audit (Terminal B)</button>
+    <button class="primary" onclick="runFullSimulation()">▶ Run Full Demo</button>
+    <button onclick="stepDeployAndRegister()">1. Deploy &amp; Register Model</button>
+    <button onclick="stepBuyAndWithdraw()">2. Buy Licenses &amp; Withdraw</button>
+    <button onclick="stepDeactivate()">3. Deactivate Model</button>
+    <button onclick="stepRunTests()">4. Run Mocha/Chai Tests</button>
     <button onclick="clearTerminals()">Clear Consoles</button>
   </div>
 
-  <!-- Dual Terminals A & B -->
   <section class="terminals-grid">
-    <!-- Terminal A -->
     <div class="terminal">
       <div class="terminal-header">
         <div class="dots">
@@ -257,15 +235,14 @@
           <span class="dot yellow"></span>
           <span class="dot green"></span>
         </div>
-        <span>TERMINAL A — Local Hardhat EVM Node (Port 8545)</span>
-        <span style="color: var(--accent-blue);">RPC Server</span>
+        <span>TERMINAL A — Chain Events (Hardhat network, chainId 31337)</span>
+        <span style="color: var(--accent-blue);">Events</span>
       </div>
       <div class="terminal-body" id="term-a">
-        <span class="log-muted">// Waiting to initialize local EVM blockchain node...</span>
+        <span class="log-muted">// Waiting for the first transaction...</span>
       </div>
     </div>
 
-    <!-- Terminal B -->
     <div class="terminal">
       <div class="terminal-header">
         <div class="dots">
@@ -273,96 +250,164 @@
           <span class="dot yellow"></span>
           <span class="dot green"></span>
         </div>
-        <span>TERMINAL B — Deployment, Interaction & Mocha/Chai Validation</span>
-        <span style="color: var(--accent-green);">Client & Auditor</span>
+        <span>TERMINAL B — Scripts &amp; Tests (client)</span>
+        <span style="color: var(--accent-green);">Client</span>
       </div>
       <div class="terminal-body" id="term-b">
-        <span class="log-muted">// Ready to execute smart contract scripts & automated tests...</span>
+        <span class="log-muted">// Ready to replay scripts/interact.js and the test suite...</span>
       </div>
     </div>
   </section>
 
-  <!-- Cryptographic Validation Banner -->
-  <div class="validation-banner">
+  <div class="summary-banner">
     <div>
-      <strong>On-Chain Proof Summary:</strong> Heavy neural weights remain off-chain while authorship (<code>@VinciLabs</code>), pricing (<code>0.48 ETH</code>), and fractional rights (<code>1000 tokens</code>) are immutably sealed via <code>ModelRegistered</code> event.
+      <strong>Summary:</strong> model weights stay off-chain. The contract records the creator address, the content hash, the price and the supply, credits sales to the creator through <code>withdraw()</code>, and emits events for indexers.
     </div>
-    <span style="color: var(--accent-green); font-weight: 700;">✔ EVM State Verified</span>
+    <span style="color: var(--accent-orange); font-weight: 700;">Replay of a real run of scripts/interact.js</span>
   </div>
 
   <script>
     const termA = document.getElementById('term-a');
     const termB = document.getElementById('term-b');
+    const timers = [];
 
-    function appendLog(el, text, className = '') {
-      const span = document.createElement('div');
-      if (className) span.className = className;
-      span.textContent = text;
-      el.appendChild(span);
+    function appendLog(el, text, className) {
+      const line = document.createElement('div');
+      if (className) line.className = className;
+      line.textContent = text;
+      el.appendChild(line);
       el.scrollTop = el.scrollHeight;
     }
 
     function clearTerminals() {
-      termA.innerHTML = '<span class="log-muted">// Terminal A cleared. Ready...</span>';
-      termB.innerHTML = '<span class="log-muted">// Terminal B cleared. Ready...</span>';
-    }
-
-    function stepNodeStart() {
-      termA.innerHTML = '';
-      appendLog(termA, '$ npx hardhat node', 'log-info');
-      appendLog(termA, 'Started HTTP and WebSocket JSON-RPC server at http://127.0.0.1:8545/', 'log-success');
-      appendLog(termA, '');
-      appendLog(termA, 'Accounts Available (10000 ETH each):', 'log-muted');
-      appendLog(termA, 'Account #0: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Deployer / @VinciLabs)');
-      appendLog(termA, 'Account #1: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8 (License Buyer)');
-      appendLog(termA, '');
-      appendLog(termA, '[EVM] Listening for signed Keccak-256 transactions...', 'log-purple');
+      timers.splice(0).forEach(clearTimeout);
+      termA.innerHTML = '<span class="log-muted">// Terminal A cleared.</span>';
+      termB.innerHTML = '<span class="log-muted">// Terminal B cleared.</span>';
     }
 
     function stepDeployAndRegister() {
-      termB.innerHTML = '';
-      appendLog(termB, '$ npx hardhat run scripts/interact.js --network localhost', 'log-info');
-      appendLog(termB, 'Deploying AIModelRegistry (ERC-1155)...');
-      appendLog(termB, 'Contract deployed to: 0x5FbDB2315678afecb367f032d93F642f64180aa3', 'log-success');
+      appendLog(termB, '$ npx hardhat run scripts/interact.js', 'log-info');
+      appendLog(termB, '=== AIModelRegistry demo (NuvyraHub PoC) ===');
       appendLog(termB, '');
-      appendLog(termB, 'Executing registerModel() transaction...', 'log-warn');
-      appendLog(termB, '├── Asset Name:     VisionForge Pro');
-      appendLog(termB, '├── Creator Handle: @VinciLabs');
-      appendLog(termB, '├── Base Price:     0.48 ETH');
-      appendLog(termB, '└── Token Supply:   1000 ERC-1155 Units');
+      appendLog(termB, '1. Contract deployed at 0x5FbDB2315678afecb367f032d93F642f64180aa3', 'log-success');
       appendLog(termB, '');
-      appendLog(termB, '✔ Transaction mined in Block #2 | Event emitted: ModelRegistered(tokenId: 0)', 'log-success');
+      appendLog(termB, '2. Model registered as token #0', 'log-success');
+      appendLog(termB, '   name:        VisionForge Pro');
+      appendLog(termB, '   creator:     0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
+      appendLog(termB, '   contentHash: 0xf6d47b93ebf98ef576543804a6c24e3893efdc9e618e187d494a2666da99f962');
+      appendLog(termB, '   price:       0.48 ETH per license');
+      appendLog(termB, '   maxSupply:   1000');
+      appendLog(termB, '   creator holds 100 initial units');
+      appendLog(termB, '');
+      appendLog(termB, "3. Duplicate hash rejected: reverted with reason string 'Content hash already registered'", 'log-warn');
+      appendLog(termB, '');
 
-      // Mirror block mining in Terminal A
-      appendLog(termA, '');
-      appendLog(termA, 'eth_sendRawTransaction -> Contract Call: AIModelRegistry.registerModel', 'log-warn');
-      appendLog(termA, '  Block #2 mined | Gas used: 142,810 | Keccak-256 State Root Updated', 'log-success');
+      appendLog(termA, 'Block #1  contract created at 0x5FbDB2…0aa3', 'log-success');
+      appendLog(termA, 'Block #2  ModelRegistered(tokenId: 0, creator: 0x7099…79C8,', 'log-purple');
+      appendLog(termA, '          price: 0.48 ETH, maxSupply: 1000)', 'log-purple');
+      appendLog(termA, '          (second registration with the same hash reverted)', 'log-muted');
+    }
+
+    function stepBuyAndWithdraw() {
+      appendLog(termB, '4. Buyer acquired 2 licenses (sent 0.98 ETH)', 'log-success');
+      appendLog(termB, '   buyer licenses:         2');
+      appendLog(termB, '   total supply:           102 / 1000');
+      appendLog(termB, '   credited to creator:    0.96 ETH');
+      appendLog(termB, '   credited back to buyer: 0.02 ETH');
+      appendLog(termB, '');
+      appendLog(termB, '5. Withdrawals done', 'log-success');
+      appendLog(termB, '   developer net gain (after gas): 0.959974929518649064 ETH');
+      appendLog(termB, '   contract balance:               0.0 ETH');
+      appendLog(termB, '');
+
+      appendLog(termA, 'Block #3  LicenseAcquired(tokenId: 0, buyer: 0x3C44…93BC,', 'log-purple');
+      appendLog(termA, '          quantity: 2, paid: 0.96 ETH)', 'log-purple');
+      appendLog(termA, 'Block #4  Withdrawn(0x7099…79C8, 0.96 ETH)', 'log-success');
+      appendLog(termA, 'Block #5  Withdrawn(0x3C44…93BC, 0.02 ETH)', 'log-success');
+    }
+
+    function stepDeactivate() {
+      appendLog(termB, "6. Model deactivated, purchase rejected: reverted with reason string 'Model is not active'", 'log-warn');
+      appendLog(termB, '');
+      appendLog(termB, 'Demo finished.', 'log-success');
+      appendLog(termB, '');
+
+      appendLog(termA, 'Block #6  ModelStatusChanged(tokenId: 0, isActive: false)', 'log-purple');
+      appendLog(termA, '          (later purchase attempt reverted)', 'log-muted');
     }
 
     function stepRunTests() {
-      appendLog(termB, '');
-      appendLog(termB, '$ npx hardhat test', 'log-info');
-      appendLog(termB, 'Running Solidity & Mocha/Chai Integrity Suite...');
-      appendLog(termB, '');
-      appendLog(termB, '  AIModelRegistry (NuvyraHub PoC)');
-      appendLog(termB, '    ✔ Should register a new AI model and emit ModelRegistered with exact metadata (131ms)', 'log-success');
-      appendLog(termB, '');
-      appendLog(termB, '  1 passing (1 mocha) — All cryptographic assertions verified.', 'log-success');
+      const suite = [
+        ['registerModel', [
+          'registers a model and emits ModelRegistered',
+          'stores the creator address, hash, price and supply on-chain',
+          'mints the initial supply to the creator',
+          'allows initialSupply = 0 and mints nothing',
+          'increments the token id for each model',
+          'reverts on an empty name',
+          'reverts on a name longer than 64 bytes',
+          'reverts on an empty handle',
+          'reverts on a zero content hash',
+          'reverts when the content hash is already registered',
+          'reverts when maxSupply is zero',
+          'reverts when initialSupply exceeds maxSupply'
+        ]],
+        ['acquireLicense', [
+          'mints licenses to the buyer and emits LicenseAcquired',
+          'credits the payment to the creator (not paid out yet)',
+          'credits any excess ETH back to the buyer',
+          'reverts when the ETH sent is not enough',
+          'reverts when quantity is zero',
+          'reverts for a model that does not exist',
+          'reverts when the model is inactive',
+          'enforces the maximum supply',
+          'supports free models (price = 0)'
+        ]],
+        ['withdraw', [
+          'pays the creator the accumulated sales',
+          'emits Withdrawn',
+          'reverts when there is nothing to withdraw',
+          'cannot be withdrawn twice',
+          'leaves the contract balance at zero after all withdrawals'
+        ]],
+        ['setModelActive', [
+          'lets the creator deactivate and reactivate the model',
+          'lets the contract owner deactivate a model',
+          'reverts for a stranger',
+          'reverts for a model that does not exist'
+        ]],
+        ['setURI', [
+          'lets the owner change the metadata URI',
+          'reverts for a non-owner'
+        ]]
+      ];
 
-      appendLog(termA, '');
-      appendLog(termA, '[EVM Snapshot] Ephemeral test state verified and reverted cleanly.', 'log-muted');
+      appendLog(termB, '$ npx hardhat test', 'log-info');
+      appendLog(termB, '  AIModelRegistry (NuvyraHub PoC)');
+      suite.forEach(function (group) {
+        appendLog(termB, '    ' + group[0]);
+        group[1].forEach(function (name) {
+          appendLog(termB, '      ✔ ' + name, 'log-success');
+        });
+      });
+      appendLog(termB, '');
+      appendLog(termB, '  32 passing', 'log-success');
+      appendLog(termB, '');
+
+      appendLog(termA, '[tests] each test runs on a fresh in-memory network', 'log-muted');
     }
 
     function runFullSimulation() {
-      stepNodeStart();
-      setTimeout(stepDeployAndRegister, 700);
-      setTimeout(stepRunTests, 1600);
+      clearTerminals();
+      termA.innerHTML = '';
+      termB.innerHTML = '';
+      const steps = [stepDeployAndRegister, stepBuyAndWithdraw, stepDeactivate, stepRunTests];
+      steps.forEach(function (fn, i) {
+        timers.push(setTimeout(fn, i * 900));
+      });
     }
 
-    // Auto-run on load so the screen immediately looks alive
-    window.onload = () => {
-      runFullSimulation();
-    };
+    window.onload = runFullSimulation;
   </script>
 </body>
 </html>
