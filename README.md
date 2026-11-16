@@ -80,7 +80,7 @@ This is a PoC. The following are deliberate simplifications:
 
 ## Quick start (Windows PowerShell)
 
-**Prerequisites:** Node.js 22 or later (required by Hardhat 3, check with `node -v`), npm and Git.
+**Prerequisites:** Node.js 22 or later (required by Hardhat 3, check with `node -v`; tested with v26.13.1), npm and Git.
 
     git clone https://github.com/jgarcia0908/ai-model-registry-poc.git
     cd ai-model-registry-poc
@@ -126,7 +126,7 @@ Deploys a fresh registry and walks through the whole lifecycle. Example output (
 
 ## Demo viewer — simulated replay (`visor-demo.html`)
 
-A standalone, zero-dependency HTML page that **replays** the contract lifecycle as two terminals: a chain-events log and a client/auditor. The terminal text is taken from a real run of `scripts/interact.js` and of the test suite, but the page is a visual walkthrough for presentations: it does **not** connect to a node or execute the contract. Double-click the file to open it in any modern browser.
+A standalone, zero-dependency HTML page that **replays** the contract lifecycle as two terminals: a chain-events log and a client/auditor. The terminal text is taken from a real run of `scripts/interact.js` and of the test suite, but the page is a visual walkthrough for presentations: it does **not** connect to a node or execute the contract. Double-click the file to open it in any modern browser, or use the hosted copy: https://jgarcia0908.github.io/ai-model-registry-poc/visor-demo.html
 
 ---
 
@@ -142,11 +142,17 @@ A standalone, zero-dependency HTML page that **replays** the contract lifecycle 
     │   ├── deploy.js                 # Deployment script
     │   └── interact.js               # Full lifecycle demo
     ├── test/
-    │   └── AIModelRegistry.test.js   # Mocha/Chai unit tests
-    ├── visor-demo.html               # Simulated two-terminal viewer
+    │   └── AIModelRegistry.test.js   # Mocha/Chai unit tests (32)
+    ├── .gitignore                    # Excludes dependencies, build output and local files
     ├── hardhat.config.ts             # Hardhat network and compiler configuration
+    ├── LICENSE                       # MIT license
     ├── package.json                  # Dependencies and ESM configuration
-    └── README.md
+    ├── package-lock.json             # Exact dependency versions for reproducible installs
+    ├── README.md                     # This file
+    ├── tsconfig.json                 # TypeScript configuration used by Hardhat
+    └── visor-demo.html               # Simulated two-terminal viewer
+
+Generated folders (`node_modules`, `artifacts`, `cache`, `types`) are created by `npm install` and `npx hardhat compile`, and are not committed.
 
 ---
 
@@ -163,3 +169,9 @@ A standalone, zero-dependency HTML page that **replays** the contract lifecycle 
 ## AI-assisted development
 
 This project was developed with the assistance of AI tools (Gemini and Claude) for code review, drafting of tests and scripts, and documentation. The design decisions, the contract changes and the validation (compilation, the 32-test suite and the demo run) were reviewed and verified by the author.
+
+---
+
+## License
+
+Released under the MIT License. See the [LICENSE](LICENSE) file.
