@@ -2,7 +2,7 @@
 
 A Proof of Concept (PoC) smart contract built on **ERC-1155** that registers AI models on an EVM chain, sells licenses to them in ETH, and credits the revenue to the model's creator. Heavy assets (model weights) stay off-chain; the contract records who registered a model, a hash of its content, its commercial terms and who holds licenses.
 
-> **Status:** PoC for learning and evaluation. Not audited. Do not deploy with real funds.
+> **Status:** PoC for learning and evaluation. Not audited and not deployed on a public network. Do not deploy with real funds.
 
 ---
 
@@ -13,7 +13,7 @@ A Proof of Concept (PoC) smart contract built on **ERC-1155** that registers AI 
 | **Register a model** | `registerModel()` stores the name, the creator **address** (`msg.sender`), a creator handle (free text), a **content hash** of the off-chain weights, the price per license and a maximum supply. Mints an optional initial supply to the creator. |
 | **Content notarization** | Each content hash can be registered **once**. The chain records *who registered a hash first, and when*. It does not prove the registrant owns the weights (see limitations). |
 | **Buy licenses** | `acquireLicense()` mints license units (ERC-1155 balances) to the buyer for `basePrice × quantity`. Reverts if the model is inactive, the payment is short, the quantity is zero or the **maximum supply** would be exceeded. |
-| **Pull payments** | Payments are credited to `pendingWithdrawals` and collected with `withdraw()`. Overpayment is credited back to the buyer the same way. No ETH can be left stuck in the contract. |
+| **Pull payments** | Payments are credited to `pendingWithdrawals` and collected with `withdraw()`. Overpayment is credited back to the buyer the same way. Credited funds can always be withdrawn by their owner, and direct ETH transfers to the contract are rejected (there is no `receive()` function). |
 | **Model status** | `setModelActive()` lets the creator (or the contract owner) pause or resume sales of a model. |
 | **Indexing** | Emits `ModelRegistered`, `LicenseAcquired`, `ModelStatusChanged` and `Withdrawn` for dApps and subgraphs. |
 
@@ -64,6 +64,7 @@ This is a PoC. The following are deliberate simplifications:
 * **No secondary-sale royalties** (ERC-2981 is not implemented) and licenses are freely transferable.
 * **Centralized metadata:** the base URI points to an off-chain server and the contract owner can change it.
 * **Owner powers:** the contract owner can deactivate any model.
+* **No global emergency stop:** the only switch is `setModelActive()`, per model.
 * **Gas:** names and handles are stored on-chain as strings; hashing them would be cheaper.
 
 ---
@@ -123,7 +124,7 @@ Deploys a fresh registry and walks through the whole lifecycle. Example output (
 
 ---
 
-## Interactive viewer (`visor-demo.html`)
+## Demo viewer — simulated replay (`visor-demo.html`)
 
 A standalone, zero-dependency HTML page that **replays** the contract lifecycle as two terminals: a chain-events log and a client/auditor. The terminal text is taken from a real run of `scripts/interact.js` and of the test suite, but the page is a visual walkthrough for presentations: it does **not** connect to a node or execute the contract. Double-click the file to open it in any modern browser.
 
@@ -161,4 +162,4 @@ A standalone, zero-dependency HTML page that **replays** the contract lifecycle 
 
 ## AI-assisted development
 
-This project was developed with the assistance of AI tools (Anthropic's Claude) for code review, drafting of tests and scripts, and documentation. The design decisions, the contract changes and the validation (compilation, the 32-test suite and the demo run) were reviewed and verified by the author.
+This project was developed with the assistance of AI tools (Gemini and Claude) for code review, drafting of tests and scripts, and documentation. The design decisions, the contract changes and the validation (compilation, the 32-test suite and the demo run) were reviewed and verified by the author.
